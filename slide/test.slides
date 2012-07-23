@@ -1,0 +1,15 @@
+[main]
+template=templates/cccs
+sections=intro,foo,bar
+
+[intro]
+title=Introduction
+slides=1,2
+
+[foo]
+title=Foo
+slides=3
+
+[bar]
+title=Bar
+slides=4
