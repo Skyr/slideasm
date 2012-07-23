@@ -18,6 +18,18 @@ object SlideAsm {
     }
     val config = new Configuration()
     config.load(scala.io.Source.fromFile(mainFile), true)
-    config.sectionNames.foreach(s => println(s))
+    
+    val sections = config.get("main","sections")
+    if (!sections.isDefined) {
+      println("sections in main missing")
+      System.exit(1)
+    }
+    sections.get.split(",").foreach(section => {
+    	println(section)
+    	val slides = config.get(section, "slides")
+    	if (slides.isDefined) {
+    	  slides.get.split(",").foreach(slide => println("  " + slide))
+    	}
+    } )
   }
 }
