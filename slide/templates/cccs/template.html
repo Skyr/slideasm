@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+
+<!--
+  Google HTML5 slide template
+
+  Authors: Luke Mahé (code)
+           Marcin Wichary (code and design)
+
+           Dominic Mazzoni (browser compatibility)
+           Charles Chen (ChromeVox support)
+
+  URL: http://code.google.com/p/html5slides/
+
+-->
+<!--
+  UUlm Style
+
+  Author: Benjamin Erb
+
+  URL: https://github.com/berb/html5slides-uulm
+
+-->
+
+<html>
+
+<head>
+<script
+	src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+<link href="lib/styles.css" media="screen" rel="stylesheet"
+	type="text/css" />
+<link href="lib/cccs/cccs.css" media="screen" rel="stylesheet"
+	type="text/css" />
+<link href="lib/styles.css" media="print" rel="stylesheet"
+	type="text/css" />
+<link href="lib/cccs/cccs.css" media="print" rel="stylesheet"
+	type="text/css" />
+<style type="text/css" media="print">
+@page {
+	size: A4 landscape;
+}
+</style>
+<meta charset='utf-8' />
+<script src='lib/slides.js'></script>
+<link href="lib/animate/animate.css" media="screen" rel="stylesheet"
+	type="text/css" />
+<script type="text/javascript">
+	function animate(element, params) {
+		var p = params.split(' ');
+		if (p.length > 1) {
+			$(p[1]).addClass("animated " + p[0]);
+		} else {
+			element.className += " animated " + params;
+		}
+	}
+</script>
+
+<title><slide-var name="title"/></title>
+
+</head>
+
+<body style='display: none'>
+	<div class='slides layout-normal template-cccs-in'>
+		<slide-content />
+	</div>
+</body>
+</html>

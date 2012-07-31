@@ -2,6 +2,7 @@ package de.ploing.slideasm
 
 import java.io.File
 import grizzled.config.Configuration
+import scala.xml.XML
 
 
 object SlideAsm {
@@ -18,6 +19,9 @@ object SlideAsm {
     }
     val config = new Configuration()
     config.load(scala.io.Source.fromFile(mainFile), true)
+
+    val templateName = mainFile.getParent() + File.separator + config.get("main","template").get + "/template.html"
+    val template = XML.loadFile(templateName)
     
     val sections = config.get("main","sections")
     if (!sections.isDefined) {
