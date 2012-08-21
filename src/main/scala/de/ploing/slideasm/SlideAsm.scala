@@ -3,12 +3,13 @@ package de.ploing.slideasm
 import java.io.File
 import grizzled.config.Configuration
 import scala.xml.XML
+import java.nio.file.Paths
 
 
 object SlideAsm {
   def main(args: Array[String]): Unit = {
     println("SlideAsm - the html5 slide assembler")
-    if (args.size!=1) {
+    if (args.length!=1) {
       println("Exactly one parameter (assembly file) required")
       System.exit(1)
     }
@@ -20,8 +21,9 @@ object SlideAsm {
     val config = new Configuration()
     config.load(scala.io.Source.fromFile(mainFile), true)
 
-    val templateName = mainFile.getParent() + File.separator + config.get("main","template").get + "/template.html"
-    val template = XML.loadFile(templateName)
+    val slideBaseDir = mainFile.getParent
+    val templateName = Paths.get(mainFile.getParent(), config.get("main","template").get, "template.html")
+    val template = XML.loadFile(templateName.toString)
     
     val sections = config.get("main","sections")
     if (!sections.isDefined) {
@@ -32,7 +34,10 @@ object SlideAsm {
     	println(section)
     	val slides = config.get(section, "slides")
     	if (slides.isDefined) {
-    	  slides.get.split(",").foreach(slide => println("  " + slide))
+    	  slides.get.split(",").foreach(slideDir => {
+    	    println("  " + slideDir)
+    	    val slide = XML.loadFile(Paths.get(slideBaseDir.toString, slideDir, "slide.html").toString)
+    	  } )
     	}
     } )
   }
