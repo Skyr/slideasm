@@ -4,6 +4,9 @@ import java.io.File
 import grizzled.config.Configuration
 import scala.xml.XML
 import java.nio.file.Paths
+import java.nio.file.Files
+import org.pegdown.PegDownProcessor
+import org.pegdown.Extensions
 
 
 object SlideAsm {
@@ -36,7 +39,17 @@ object SlideAsm {
     	if (slides.isDefined) {
     	  slides.get.split(",").foreach(slideDir => {
     	    println("  " + slideDir)
-    	    val slide = XML.loadFile(Paths.get(slideBaseDir.toString, slideDir, "slide.html").toString)
+    	    val slideMdFile = Paths.get(slideBaseDir.toString, slideDir, "slide.md")
+    	    val slideHtmlFile = Paths.get(slideBaseDir.toString, slideDir, "slide.html")
+    	    val slide = if (Files.isReadable(slideMdFile)) {
+    	      val mdParser = new PegDownProcessor(Extensions.ALL)
+    	      val mdString = new String(Files.readAllBytes(slideMdFile))
+    	      val parsedMd = "<article>" + mdParser.markdownToHtml(mdString) + "</article>" 
+    	      println(parsedMd)
+    	      XML.load(parsedMd)    	      
+    	    } else { 
+    	      XML.loadFile(slideHtmlFile.toString) 
+    	    }
     	  } )
     	}
     } )
