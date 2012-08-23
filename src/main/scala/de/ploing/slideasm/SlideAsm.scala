@@ -1,15 +1,23 @@
 package de.ploing.slideasm
 
-import java.io.File
 import grizzled.config.Configuration
 import scala.xml.XML
 import java.nio.file.Paths
 import java.nio.file.Files
 import org.pegdown.PegDownProcessor
 import org.pegdown.Extensions
+import org.jsoup.Jsoup
+import java.io.File
+import java.nio.file.Path
+import scala.xml.Elem
 
 
 object SlideAsm {
+  def loadJSoupXml(path : Path) : Elem = {
+    val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
+    XML.loadString(jsoupDoc.outerHtml)
+  }
+  
   def main(args: Array[String]): Unit = {
     println("SlideAsm - the html5 slide assembler")
     if (args.length != 1) {
@@ -26,7 +34,7 @@ object SlideAsm {
 
     val slideBaseDir = mainFile.getParent
     val templateName = Paths.get(mainFile.getParent(), config.get("main", "template").get, "template.html")
-    val template = XML.loadFile(templateName.toString)
+    val template = loadJSoupXml(templateName)
 
     val sections = config.get("main", "sections")
     if (!sections.isDefined) {
@@ -47,8 +55,9 @@ object SlideAsm {
             val parsedMd = "<article>" + mdParser.markdownToHtml(mdString) + "</article>"
             XML.loadString(parsedMd)
           } else {
-            XML.loadFile(slideHtmlFile.toString)
+            loadJSoupXml(slideHtmlFile) \\ "article"
           }
+          println(slide)
         })
       }
     })
