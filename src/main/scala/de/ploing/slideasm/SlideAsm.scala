@@ -12,12 +12,14 @@ import java.nio.file.Path
 import scala.xml.Elem
 
 
+// Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
+
 object SlideAsm {
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
     XML.loadString(jsoupDoc.outerHtml)
   }
-  
+
   def main(args: Array[String]): Unit = {
     println("SlideAsm - the html5 slide assembler")
     if (args.length != 1) {
