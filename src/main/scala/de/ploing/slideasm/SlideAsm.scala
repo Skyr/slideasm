@@ -10,11 +10,14 @@ import org.jsoup.Jsoup
 import java.io.File
 import java.nio.file.Path
 import scala.xml.Elem
+import scopt.immutable.OptionParser
 
 
 // Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
 
 object SlideAsm {
+  case class CmdParams(assemblyFile : String = "", libDir : String = ".")
+
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
     XML.loadString(jsoupDoc.outerHtml)
@@ -22,6 +25,21 @@ object SlideAsm {
 
   def main(args: Array[String]): Unit = {
     println("SlideAsm - the html5 slide assembler")
+
+    val parser = new OptionParser[CmdParams]("SlideAsm", "1.0") {
+      def options = Seq(
+        opt("l", "libdir", "slide library base directory") { (d: String, c: CmdParams) => c.copy(libDir = d) },
+        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => c.copy(assemblyFile = f) }
+      )
+    }
+
+    parser.parse(args, CmdParams()) map { config =>
+
+    } getOrElse {
+      System.exit(1)
+    }
+
+
     if (args.length != 1) {
       println("Exactly one parameter (assembly file) required")
       System.exit(1)
