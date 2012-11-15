@@ -11,12 +11,13 @@ import java.io.File
 import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
+import java.nio.file.FileSystems
 
 
 // Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
 
 object SlideAsm {
-  case class CmdParams(assemblyFile : String = "", libDir : String = ".")
+  case class CmdParams(assemblyFile : File = null, libDirs : List[Path] = List())
 
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
@@ -28,13 +29,30 @@ object SlideAsm {
 
     val parser = new OptionParser[CmdParams]("SlideAsm", "1.0") {
       def options = Seq(
-        opt("l", "libdir", "slide library base directory") { (d: String, c: CmdParams) => c.copy(libDir = d) },
-        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => c.copy(assemblyFile = f) }
+        opt("l", "libdir", "slide library base directory") { (d: String, c: CmdParams) =>
+          val path = FileSystems.getDefault().getPath(d)
+          c.copy(libDirs = path :: c.libDirs) 
+        },
+        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => 
+          val file = new File(f)
+          if (!file.canRead()) {
+            println("Unable to read " + f)
+            System.exit(1)
+          }
+          c.copy(assemblyFile = file) 
+        }
       )
     }
 
     parser.parse(args, CmdParams()) map { config =>
-
+      if (config.assemblyFile==null) {
+        println("No assembly file given!")
+        System.exit(1)
+      }
+      if (config.libDirs.length==0) {
+        println("No library directory given!")
+        System.exit(1)
+      }
     } getOrElse {
       System.exit(1)
     }
