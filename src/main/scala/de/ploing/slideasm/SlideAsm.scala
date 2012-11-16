@@ -17,56 +17,15 @@ import java.nio.file.FileSystems
 // Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
 
 object SlideAsm {
-  case class CmdParams(assemblyFile : File = null, libDirs : List[Path] = List())
+  case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
 
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
     XML.loadString(jsoupDoc.outerHtml)
   }
-
-  def main(args: Array[String]): Unit = {
-    println("SlideAsm - the html5 slide assembler")
-
-    val parser = new OptionParser[CmdParams]("SlideAsm", "1.0") {
-      def options = Seq(
-        opt("l", "libdir", "slide library base directory") { (d: String, c: CmdParams) =>
-          val path = FileSystems.getDefault().getPath(d)
-          c.copy(libDirs = path :: c.libDirs) 
-        },
-        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => 
-          val file = new File(f)
-          if (!file.canRead()) {
-            println("Unable to read " + f)
-            System.exit(1)
-          }
-          c.copy(assemblyFile = file) 
-        }
-      )
-    }
-
-    parser.parse(args, CmdParams()) map { config =>
-      if (config.assemblyFile==null) {
-        println("No assembly file given!")
-        System.exit(1)
-      }
-      if (config.libDirs.length==0) {
-        println("No library directory given!")
-        System.exit(1)
-      }
-    } getOrElse {
-      System.exit(1)
-    }
-
-
-    if (args.length != 1) {
-      println("Exactly one parameter (assembly file) required")
-      System.exit(1)
-    }
-    val mainFile = new File(args(0))
-    if (!mainFile.canRead()) {
-      println("Unable to read " + args(0))
-      System.exit(1)
-    }
+  
+  def processAssemblyFile(cfg : CmdParams) = {
+    val mainFile = cfg.assemblyFile.get
     val config = new Configuration()
     config.load(scala.io.Source.fromFile(mainFile), true)
 
@@ -99,5 +58,52 @@ object SlideAsm {
         })
       }
     })
+  }
+
+  def main(args: Array[String]): Unit = {
+    println("SlideAsm - the html5 slide assembler")
+
+    // Setup scopt command line parsing
+    val parser = new OptionParser[CmdParams]("SlideAsm", "1.0") {
+      def options = Seq(
+        opt("l", "libdir", "<directory>", "slide library base directory") { (d: String, c: CmdParams) =>
+          val path = FileSystems.getDefault().getPath(d)
+          if (!Files.exists(path)) {
+            println("Library directory " + d + " does not exist!")
+            System.exit(1)
+          }
+          c.copy(libDirs = c.libDirs ::: List(path)) 
+        },
+        opt("o", "outdir", "output directory") { (d: String, c: CmdParams) =>
+          val path = FileSystems.getDefault().getPath(d)
+          c.copy(outDir = Some(path)) 
+        },
+        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => 
+          val file = new File(f)
+          if (!file.canRead()) {
+            println("Unable to read " + f)
+            System.exit(1)
+          }
+          c.copy(assemblyFile = Some(file)) 
+        }
+      )
+    }
+
+    // Execute command line parser
+    parser.parse(args, CmdParams()) map { config =>
+      // Parameters parsed successfully, do last validations
+      if (config.assemblyFile==None) {
+        println("No assembly file given!")
+        System.exit(1)
+      }
+      if (config.libDirs.length==0) {
+        println("No library directory given!")
+        System.exit(1)
+      }
+      // Everything is ok, get to work
+      processAssemblyFile(config)
+    } getOrElse {
+      System.exit(1)
+    }
   }
 }
