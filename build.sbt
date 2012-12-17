@@ -4,7 +4,7 @@ version := "1.0"
 
 scalaVersion := "2.9.2"
 
-resolvers += "sonatype-public" at "https://oss.sonatype.org/content/groups/public"
+resolvers += "sonatype-public" at "http://oss.sonatype.org/content/groups/public"
 
 libraryDependencies ++= Seq(
 // "org.clapper" %% "argot" % "0.4"
