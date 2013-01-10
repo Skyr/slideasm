@@ -61,8 +61,12 @@ object SlideAsm {
   }
 
 
-  def findFileInDirs(fileName : String, libDirs : List[Path]) : Option[File] = {
-    libDirs map { path => new File(path + path.getFileSystem.getSeparator + fileName) } find { file => file.exists() }
+  def findFileInDirs(fileName : Path, libDirs : List[Path]) : Option[File] = {
+    libDirs map { path =>
+      new File(path + path.getFileSystem.getSeparator + fileName)
+    } find { file =>
+      file.exists()
+    }
   }
 
   def processAssemblyFile(cfg : CmdParams) = {
@@ -88,7 +92,9 @@ object SlideAsm {
           c.copy(outDir = Some(path)) 
         },
         arg("<file>", "main assembly file") { (f: String, c: CmdParams) =>
-          findFileInDirs(f, c.libDirs) match {
+          val fp = FileSystems.getDefault().getPath(f).toAbsolutePath
+          val libDirs = fp.getParent :: c.libDirs
+          findFileInDirs(fp.getFileName, libDirs) match {
             case None =>
               println("File " + f + " not found")
               System.exit(1)
@@ -98,7 +104,8 @@ object SlideAsm {
                 println("Unable to read " + f)
                 System.exit(1)
               }
-              c.copy(assemblyFile = Some(file))
+              // Prepend path of assembly file as first
+              c.copy(assemblyFile = Some(file), libDirs = libDirs)
           }
         }
       )
