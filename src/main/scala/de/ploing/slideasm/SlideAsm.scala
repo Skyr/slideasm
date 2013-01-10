@@ -7,11 +7,12 @@ import java.nio.file.Files
 import org.pegdown.PegDownProcessor
 import org.pegdown.Extensions
 import org.jsoup.Jsoup
-import java.io.File
+import java.io.{FileInputStream, File}
 import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
 import java.nio.file.FileSystems
+import org.yaml.snakeyaml.Yaml
 
 
 // Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
@@ -70,6 +71,8 @@ object SlideAsm {
   }
 
   def processAssemblyFile(cfg : CmdParams) = {
+    val yaml = new Yaml()
+    yaml.loadAll(new FileInputStream(cfg.assemblyFile.get))
   }
 
 
