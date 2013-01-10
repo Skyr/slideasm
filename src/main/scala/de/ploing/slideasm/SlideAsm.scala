@@ -24,7 +24,7 @@ object SlideAsm {
     XML.loadString(jsoupDoc.outerHtml)
   }
   
-  def processAssemblyFile(cfg : CmdParams) = {
+  def grizzledProcessAssemblyFile(cfg : CmdParams) = {
     val mainFile = cfg.assemblyFile.get
     val config = new Configuration()
     config.load(scala.io.Source.fromFile(mainFile), true)
@@ -60,6 +60,15 @@ object SlideAsm {
     })
   }
 
+
+  def findFileInDirs(fileName : String, libDirs : List[Path]) : Option[File] = {
+    libDirs map { path => new File(path + path.getFileSystem.getSeparator + fileName) } find { file => file.exists() }
+  }
+
+  def processAssemblyFile(cfg : CmdParams) = {
+  }
+
+
   def main(args: Array[String]): Unit = {
     println("SlideAsm - the html5 slide assembler")
 
@@ -78,13 +87,19 @@ object SlideAsm {
           val path = FileSystems.getDefault().getPath(d)
           c.copy(outDir = Some(path)) 
         },
-        arg("<file>", "main assembly file") { (f: String, c: CmdParams) => 
-          val file = new File(f)
-          if (!file.canRead()) {
-            println("Unable to read " + f)
-            System.exit(1)
+        arg("<file>", "main assembly file") { (f: String, c: CmdParams) =>
+          findFileInDirs(f, c.libDirs) match {
+            case None =>
+              println("File " + f + " not found")
+              System.exit(1)
+              c
+            case Some(file) =>
+              if (!file.canRead()) {
+                println("Unable to read " + f)
+                System.exit(1)
+              }
+              c.copy(assemblyFile = Some(file))
           }
-          c.copy(assemblyFile = Some(file)) 
         }
       )
     }
