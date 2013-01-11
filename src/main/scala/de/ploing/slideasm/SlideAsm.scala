@@ -1,5 +1,6 @@
 package de.ploing.slideasm
 
+import scala.collection.JavaConverters._
 import grizzled.config.Configuration
 import scala.xml.XML
 import java.nio.file.Paths
@@ -15,7 +16,8 @@ import java.nio.file.FileSystems
 import org.yaml.snakeyaml.Yaml
 
 
-// Note: Look at yaml for metadata http://alvinalexander.com/scala/scala-yaml-parser-parsing-examples-snakeyaml-objects
+case class AssemblyFile(properties : Map[String,AnyRef], slides : List[AnyRef])
+
 
 object SlideAsm {
   case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
@@ -70,9 +72,25 @@ object SlideAsm {
     }
   }
 
+  def parseAssemblyFile(file : File) : Option[AssemblyFile] = {
+    val yaml = new Yaml()
+    val it = yaml.loadAll(new FileInputStream(file)).asScala
+    (it.head, it.head) match {
+      case (m : java.util.Map[Object,Object], l : java.util.List[Object]) =>
+        Some(new AssemblyFile(Map()/*m.asScala.toMap*/, l.asScala.toList))
+      case _ =>
+        None
+    }
+  }
+
   def processAssemblyFile(cfg : CmdParams) = {
     val yaml = new Yaml()
-    yaml.loadAll(new FileInputStream(cfg.assemblyFile.get))
+    for (obj <- yaml.loadAll(new FileInputStream(cfg.assemblyFile.get)).asScala) {
+      println(obj.getClass)
+      println(obj)
+    }
+    val af = parseAssemblyFile(cfg.assemblyFile.get)
+    println(af)
   }
 
 

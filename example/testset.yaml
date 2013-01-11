@@ -5,7 +5,7 @@ slideclass: normal
 ---
 - title
 - intro
-- chapter 1
+-
   slidefile: subsection
   include: chapter1
 - end
