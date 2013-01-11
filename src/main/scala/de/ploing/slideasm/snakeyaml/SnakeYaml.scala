@@ -31,4 +31,13 @@ object SnakeYaml {
   def parse(file : File) : YamlElement = {
     parse(new FileInputStream(file))
   }
+
+  def parseAll(in : InputStream) : Iterable[YamlElement] = {
+    val yaml = new Yaml()
+    yaml.loadAll(in).asScala map(convertFromSnakeYaml(_))
+  }
+
+  def parseAll(file : File) : Iterable[YamlElement] = {
+    parseAll(new FileInputStream(file))
+  }
 }
