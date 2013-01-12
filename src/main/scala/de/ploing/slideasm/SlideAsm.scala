@@ -12,10 +12,9 @@ import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
 import java.nio.file.FileSystems
-import snakeyaml.SnakeYaml
-
-
-case class AssemblyFile(properties : Map[String,AnyRef], slides : List[AnyRef])
+import snakeyaml.{YamlSeq, YamlMap, SnakeYaml}
+import java.util.NoSuchElementException
+import org.yaml.snakeyaml.error.YAMLException
 
 
 object SlideAsm {
@@ -71,8 +70,14 @@ object SlideAsm {
     }
   }
 
+
   def processAssemblyFile(cfg : CmdParams) = {
-    println(SnakeYaml.parseAll(cfg.assemblyFile.get))
+    val data = AssemblyFile.parse(cfg.assemblyFile.get)
+    if (data.isEmpty) {
+      System.exit(1)
+    }
+    println(data.get.properties)
+    println(data.get.slides)
   }
 
 
