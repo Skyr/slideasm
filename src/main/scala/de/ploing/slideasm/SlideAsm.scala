@@ -12,7 +12,7 @@ import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
 import java.nio.file.FileSystems
-import snakeyaml.{YamlSeq, YamlMap, SnakeYaml}
+import snakeyaml.{YamlScalar, YamlSeq, YamlMap, SnakeYaml}
 import java.util.NoSuchElementException
 import org.yaml.snakeyaml.error.YAMLException
 
@@ -62,22 +62,64 @@ object SlideAsm {
   }
 
 
-  def findFileInDirs(fileName : Path, libDirs : List[Path]) : Option[File] = {
+  def findFileInDirs(fileName : String, libDirs : List[Path]) : Option[File] = {
     libDirs map { path =>
       new File(path + path.getFileSystem.getSeparator + fileName)
     } find { file =>
-      file.exists()
+      file.exists && file.isFile
     }
   }
 
 
-  def processAssemblyFile(cfg : CmdParams) = {
-    val data = AssemblyFile.parse(cfg.assemblyFile.get)
-    if (data.isEmpty) {
-      System.exit(1)
+  def findDirInDirs(dirName : String, libDirs : List[Path]) : Option[File] = {
+    libDirs map { path =>
+      new File(path + path.getFileSystem.getSeparator + dirName)
+    } find { file =>
+      file.exists && file.isDirectory
     }
-    println(data.get.properties)
-    println(data.get.slides)
+  }
+
+
+  def processAssemblyFile(file : File, cfg : CmdParams) : Unit = {
+    // Parse assembly file
+    val assemblyFile = {
+      val data = AssemblyFile.parse(file)
+      if (data.isEmpty) {
+        System.exit(1)
+      }
+      data.get
+    }
+    println(assemblyFile.properties)
+    println(assemblyFile.slides)
+    for (el <-assemblyFile.slides.list) el match {
+      case YamlScalar(v : String) =>
+        println("Slide " + v)
+      case YamlMap(m) =>
+        if (!m.contains("include")) {
+          println("Missing include element in assembly file " + file)
+          System.exit(1)
+        }
+        m.get("include").get match {
+          case YamlScalar(filename : String) =>
+            val incFile = {
+              val incFile = findFileInDirs(filename, cfg.libDirs)
+              if (incFile.isEmpty) {
+                println("Included assembly file " + filename + " not found")
+                System.exit(1)
+              }
+              incFile.get
+            }
+            println("Begin include " + m.get("include"))
+            processAssemblyFile(incFile, cfg)
+            println("End include " + m.get("include"))
+          case el =>
+            println("Illegal element " + el + " in assembly file " + file)
+            System.exit(1)
+        }
+      case el =>
+        println("Illegal element " + el + " in assembly file " + file)
+        System.exit(1)
+    }
   }
 
 
@@ -102,7 +144,7 @@ object SlideAsm {
         arg("<file>", "main assembly file") { (f: String, c: CmdParams) =>
           val fp = FileSystems.getDefault().getPath(f).toAbsolutePath
           val libDirs = fp.getParent :: c.libDirs
-          findFileInDirs(fp.getFileName, libDirs) match {
+          findFileInDirs(fp.getFileName.toString, libDirs) match {
             case None =>
               println("File " + f + " not found")
               System.exit(1)
@@ -131,7 +173,7 @@ object SlideAsm {
         System.exit(1)
       }
       // Everything is ok, get to work
-      processAssemblyFile(config)
+      processAssemblyFile(config.assemblyFile.get, config)
     } getOrElse {
       System.exit(1)
     }

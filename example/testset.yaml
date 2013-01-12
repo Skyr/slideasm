@@ -7,6 +7,6 @@ slideclass: normal
 - intro
 -
   slidefile: subsection
-  include: chapter1
+  include: chapter1.yaml
 - end
 
