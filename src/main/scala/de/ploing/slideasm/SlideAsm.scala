@@ -24,6 +24,12 @@ import scala.Some
 object SlideAsm {
   case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
 
+  def exit(msg : String) = {
+    println(msg)
+    sys.exit(1)
+  }
+
+
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
     XML.loadString(jsoupDoc.outerHtml)
@@ -40,8 +46,7 @@ object SlideAsm {
 
     val sections = config.get("main", "sections")
     if (!sections.isDefined) {
-      println("sections in main missing")
-      System.exit(1)
+      exit("sections in main missing")
     }
     sections.get.split(",").foreach(section => {
       println(section)
@@ -84,12 +89,23 @@ object SlideAsm {
   }
 
 
+  def processSlideFile(slideName : String, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) = {
+    val slideDir : File = findDirInDirs(slideName, cfg.libDirs) match {
+      case None =>
+        exit("Slide directory " + slideName + " not found")
+      case Some(f) =>
+        f
+    }
+    println("Slide " + slideName)
+  }
+
+
   def processAssemblyFile(file : File, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) : Unit = {
     // Parse assembly file
     val assemblyFile = {
       val data = AssemblyFile.parse(file)
       if (data.isEmpty) {
-        System.exit(1)
+        sys.exit(1)
       }
       data.get
     }
@@ -97,32 +113,28 @@ object SlideAsm {
     println("Properties of " + file + ": " + properties)
     for (el <-assemblyFile.slides.list) el match {
       case YamlScalar(v : String) =>
-        println("Slide " + v)
+        processSlideFile(v, cfg, properties)
       case YamlMap(m) =>
         if (!m.contains("include")) {
-          println("Missing include element in assembly file " + file)
-          System.exit(1)
+          exit("Missing include element in assembly file " + file)
         }
         m.get("include").get match {
           case YamlScalar(filename : String) =>
             val incFile = {
               val incFile = findFileInDirs(filename, cfg.libDirs)
               if (incFile.isEmpty) {
-                println("Included assembly file " + filename + " not found")
-                System.exit(1)
+                exit("Included assembly file " + filename + " not found")
               }
               incFile.get
             }
-            println("Begin include " + m.get("include"))
+            println("Begin include " + incFile)
             processAssemblyFile(incFile, cfg, properties ++ m)
-            println("End include " + m.get("include"))
+            println("End include " + incFile)
           case el =>
-            println("Illegal element " + el + " in assembly file " + file)
-            System.exit(1)
+            exit("Illegal element " + el + " in assembly file " + file)
         }
       case el =>
-        println("Illegal element " + el + " in assembly file " + file)
-        System.exit(1)
+        exit("Illegal element " + el + " in assembly file " + file)
     }
   }
 
@@ -136,8 +148,7 @@ object SlideAsm {
         opt("l", "libdir", "<directory>", "slide library base directory") { (d: String, c: CmdParams) =>
           val path = FileSystems.getDefault().getPath(d)
           if (!Files.exists(path)) {
-            println("Library directory " + d + " does not exist!")
-            System.exit(1)
+            exit("Library directory " + d + " does not exist!")
           }
           c.copy(libDirs = c.libDirs ::: List(path)) 
         },
@@ -150,13 +161,10 @@ object SlideAsm {
           val libDirs = fp.getParent :: c.libDirs
           findFileInDirs(fp.getFileName.toString, libDirs) match {
             case None =>
-              println("File " + f + " not found")
-              System.exit(1)
-              c
+              exit("File " + f + " not found")
             case Some(file) =>
               if (!file.canRead()) {
-                println("Unable to read " + f)
-                System.exit(1)
+                exit("Unable to read " + f)
               }
               // Prepend path of assembly file as first
               c.copy(assemblyFile = Some(file), libDirs = libDirs)
@@ -169,17 +177,15 @@ object SlideAsm {
     parser.parse(args, CmdParams()) map { config =>
       // Parameters parsed successfully, do last validations
       if (config.assemblyFile==None) {
-        println("No assembly file given!")
-        System.exit(1)
+        exit("No assembly file given!")
       }
       if (config.libDirs.length==0) {
-        println("No library directory given!")
-        System.exit(1)
+        exit("No library directory given!")
       }
       // Everything is ok, get to work
       processAssemblyFile(config.assemblyFile.get, config, Map())
     } getOrElse {
-      System.exit(1)
+      sys.exit(1)
     }
   }
 }
