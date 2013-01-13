@@ -12,9 +12,13 @@ import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
 import java.nio.file.FileSystems
-import snakeyaml.{YamlScalar, YamlSeq, YamlMap, SnakeYaml}
+import snakeyaml._
 import java.util.NoSuchElementException
 import org.yaml.snakeyaml.error.YAMLException
+import scopt.immutable.OptionParser
+import snakeyaml.YamlMap
+import snakeyaml.YamlScalar
+import scala.Some
 
 
 object SlideAsm {
@@ -80,7 +84,7 @@ object SlideAsm {
   }
 
 
-  def processAssemblyFile(file : File, cfg : CmdParams) : Unit = {
+  def processAssemblyFile(file : File, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) : Unit = {
     // Parse assembly file
     val assemblyFile = {
       val data = AssemblyFile.parse(file)
@@ -89,8 +93,8 @@ object SlideAsm {
       }
       data.get
     }
-    println(assemblyFile.properties)
-    println(assemblyFile.slides)
+    val properties = inheritedProperties ++ assemblyFile.properties.map
+    println("Properties of " + file + ": " + properties)
     for (el <-assemblyFile.slides.list) el match {
       case YamlScalar(v : String) =>
         println("Slide " + v)
@@ -110,7 +114,7 @@ object SlideAsm {
               incFile.get
             }
             println("Begin include " + m.get("include"))
-            processAssemblyFile(incFile, cfg)
+            processAssemblyFile(incFile, cfg, properties ++ m)
             println("End include " + m.get("include"))
           case el =>
             println("Illegal element " + el + " in assembly file " + file)
@@ -173,7 +177,7 @@ object SlideAsm {
         System.exit(1)
       }
       // Everything is ok, get to work
-      processAssemblyFile(config.assemblyFile.get, config)
+      processAssemblyFile(config.assemblyFile.get, config, Map())
     } getOrElse {
       System.exit(1)
     }
