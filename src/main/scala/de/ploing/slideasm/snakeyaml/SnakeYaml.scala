@@ -40,4 +40,13 @@ object SnakeYaml {
   def parseAll(file : File) : Iterable[YamlElement] = {
     parseAll(new FileInputStream(file))
   }
+
+  def parseFrontMatter(in : InputStream) : YamlElement = {
+    val yaml = new Yaml()
+    convertFromSnakeYaml(yaml.loadAll(in).iterator.next)
+  }
+
+  def parseFrontMatter(file : File) : YamlElement = {
+    parseFrontMatter(new FileInputStream(file))
+  }
 }

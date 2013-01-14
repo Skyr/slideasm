@@ -97,6 +97,17 @@ object SlideAsm {
         f
     }
     println("Slide " + slideName)
+    val metadataFile = new File(slideDir + File.separator + "slide.yaml")
+    val slideFile = Option(new File(slideDir + File.separator + "slide.md")).filter(_.exists())
+      .getOrElse(new File(slideDir + File.separator + "slide.html"))
+    if (metadataFile.exists) {
+      println("  reading sidecar yaml")
+      println("  " + SnakeYaml.parse(metadataFile))
+    } else {
+      println("  reading front matter yaml")
+      println("  " + SnakeYaml.parseFrontMatter(slideFile))
+    }
+
   }
 
 
