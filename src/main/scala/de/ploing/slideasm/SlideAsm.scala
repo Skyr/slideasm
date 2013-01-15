@@ -1,6 +1,7 @@
 package de.ploing.slideasm
 
 import grizzled.config.Configuration
+import processor.{NOpProcessor, MarkdownProcessor}
 import scala.xml.XML
 import java.nio.file.Paths
 import java.nio.file.Files
@@ -90,6 +91,19 @@ object SlideAsm {
   }
 
 
+  def determineRawFormatProcessor(slideDir : File) : (File, FormatProcessor) = {
+    val mdFile = new File(slideDir + File.separator + "slide.md")
+    val htmlFile = new File(slideDir + File.separator + "slide.html")
+    if (mdFile.exists) {
+      (mdFile, MarkdownProcessor)
+    } else if (htmlFile.exists) {
+      (htmlFile, NOpProcessor)
+    } else {
+      exit("No slide file in " + slideDir + "found")
+    }
+  }
+
+
   def processSlideFile(slideName : String, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) = {
     val slideDir : File = findDirInDirs(slideName, cfg.libDirs) match {
       case None =>
@@ -99,17 +113,18 @@ object SlideAsm {
     }
     println("Slide " + slideName)
     val metadataFile = new File(slideDir + File.separator + "slide.yaml")
-    val slideFile = Option(new File(slideDir + File.separator + "slide.md")).filter(_.exists())
-      .getOrElse(new File(slideDir + File.separator + "slide.html"))
-    if (metadataFile.exists) {
+    val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
+    val (slideMetadata, rawData) = if (metadataFile.exists) {
       println("  reading sidecar yaml")
-      println("  " + SnakeYaml.parse(metadataFile))
+      (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
     } else {
       println("  reading front matter yaml")
-      println("  " + SnakeYaml.parseFrontMatter(slideFile))
-      println("  " + SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)).toList)
+      (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
     }
-
+    val convertedHtml = slideProcessor.convertToHtml(rawData)
+    println("  Metadata: " + slideMetadata)
+    // println("  Body: " + rawData.toList.mkString(" "))
+    println("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
   }
 
 
