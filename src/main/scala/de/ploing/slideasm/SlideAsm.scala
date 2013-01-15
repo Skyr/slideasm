@@ -7,7 +7,7 @@ import java.nio.file.Files
 import org.pegdown.PegDownProcessor
 import org.pegdown.Extensions
 import org.jsoup.Jsoup
-import java.io.File
+import java.io.{FileInputStream, File}
 import java.nio.file.Path
 import scala.xml.Elem
 import scopt.immutable.OptionParser
@@ -19,6 +19,7 @@ import scopt.immutable.OptionParser
 import snakeyaml.YamlMap
 import snakeyaml.YamlScalar
 import scala.Some
+import io.BufferedSource
 
 
 object SlideAsm {
@@ -106,6 +107,7 @@ object SlideAsm {
     } else {
       println("  reading front matter yaml")
       println("  " + SnakeYaml.parseFrontMatter(slideFile))
+      println("  " + SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)).toList)
     }
 
   }

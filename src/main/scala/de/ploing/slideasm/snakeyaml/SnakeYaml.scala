@@ -3,6 +3,7 @@ package de.ploing.slideasm.snakeyaml
 import java.io.{FileInputStream, File, InputStream}
 import org.yaml.snakeyaml.Yaml
 import scala.collection.JavaConverters._
+import io.BufferedSource
 
 
 object SnakeYaml {
@@ -48,5 +49,11 @@ object SnakeYaml {
 
   def parseFrontMatter(file : File) : YamlElement = {
     parseFrontMatter(new FileInputStream(file))
+  }
+
+  def skipOverFrontMatter(inputStream : InputStream) = {
+    val separator = """^----*$""".r
+    val in = new BufferedSource(inputStream)
+    in.getLines().dropWhile(separator.findFirstIn(_).isEmpty).drop(1)
   }
 }
