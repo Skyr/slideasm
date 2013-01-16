@@ -9,7 +9,7 @@ object MarkdownProcessor extends FormatProcessor {
   val mdParser = new PegDownProcessor(Extensions.ALL)
 
   def convertToHtml(in : TraversableOnce[String]) : String = {
-    val mdString = in.toList.mkString(" ")
+    val mdString = in.toList.mkString("\n")
     mdParser.markdownToHtml(mdString)
   }
 }
