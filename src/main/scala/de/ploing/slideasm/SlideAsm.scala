@@ -1,21 +1,14 @@
 package de.ploing.slideasm
 
-import grizzled.config.Configuration
 import processor.{NOpProcessor, MarkdownProcessor}
 import scala.xml.XML
-import java.nio.file.Paths
 import java.nio.file.Files
-import org.pegdown.PegDownProcessor
-import org.pegdown.Extensions
 import org.jsoup.Jsoup
 import java.io.{FileInputStream, File}
 import java.nio.file.Path
 import scala.xml.Elem
-import scopt.immutable.OptionParser
 import java.nio.file.FileSystems
 import snakeyaml._
-import java.util.NoSuchElementException
-import org.yaml.snakeyaml.error.YAMLException
 import scopt.immutable.OptionParser
 import snakeyaml.YamlMap
 import snakeyaml.YamlScalar
@@ -37,43 +30,12 @@ object SlideAsm {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
     XML.loadString(jsoupDoc.outerHtml)
   }
-  
-  def grizzledProcessAssemblyFile(cfg : CmdParams) = {
-    val mainFile = cfg.assemblyFile.get
-    val config = new Configuration()
-    config.load(scala.io.Source.fromFile(mainFile), true)
 
-    val slideBaseDir = mainFile.getParent
-    val templateName = Paths.get(mainFile.getParent(), config.get("main", "template").get, "template.html")
-    val template = loadJSoupXml(templateName)
-
-    val sections = config.get("main", "sections")
-    if (!sections.isDefined) {
-      exit("sections in main missing")
-    }
-    sections.get.split(",").foreach(section => {
-      println(section)
-      val slides = config.get(section, "slides")
-      if (slides.isDefined) {
-        slides.get.split(",").foreach(slideDir => {
-          println("  " + slideDir)
-          val slideMdFile = Paths.get(slideBaseDir.toString, slideDir, "slide.md")
-          val slideHtmlFile = Paths.get(slideBaseDir.toString, slideDir, "slide.html")
-          val slide = if (Files.isReadable(slideMdFile)) {
-            val mdParser = new PegDownProcessor(Extensions.ALL)
-            val mdString = new String(Files.readAllBytes(slideMdFile))
-            val parsedMd = "<article>" + mdParser.markdownToHtml(mdString) + "</article>"
-            XML.loadString(parsedMd)
-          } else {
-            loadJSoupXml(slideHtmlFile) \\ "article"
-          }
-          println(slide)
-        })
-      }
-    })
+  def parseHtmltoXHtml(html : String) : Elem = {
+    val jsoupDoc = Jsoup.parse(html)
+    XML.loadString(jsoupDoc.outerHtml)
   }
-
-
+  
   def findFileInDirs(fileName : String, libDirs : List[Path]) : Option[File] = {
     libDirs map { path =>
       new File(path + path.getFileSystem.getSeparator + fileName)
@@ -153,7 +115,9 @@ object SlideAsm {
     val convertedHtml = slideProcessor.convertToHtml(rawData)
     println("  Metadata: " + slideMetadata)
     println("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
-    println("  Rendered template: " + renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata))
+    val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
+    val xhtml = parseHtmltoXHtml(renderedTemplate)
+    println("  Rendered template: " + xhtml)
   }
 
 
