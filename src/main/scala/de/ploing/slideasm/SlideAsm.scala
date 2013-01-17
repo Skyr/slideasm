@@ -21,6 +21,7 @@ import snakeyaml.YamlMap
 import snakeyaml.YamlScalar
 import scala.Some
 import io.BufferedSource
+import org.clapper.scalasti.StringTemplate
 
 
 object SlideAsm {
@@ -104,6 +105,26 @@ object SlideAsm {
   }
 
 
+  def flattenProperties(props : YamlElement) : Any = {
+    props match {
+      case YamlScalar(s) =>
+        s.toString
+      case YamlMap(m) =>
+        m.mapValues(flattenProperties(_))
+      case YamlSeq(l) =>
+        l.map(flattenProperties(_))
+      case _ =>
+        ""
+    }
+  }
+
+  def renderTemplate(html : String, cfg : CmdParams, properties : Map[String,YamlElement]) = {
+    new StringTemplate(html)
+      .setAttributes(properties.mapValues(flattenProperties(_)))
+      .toString
+  }
+
+
   def processSlideFile(slideName : String, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) = {
     val slideDir : File = findDirInDirs(slideName, cfg.libDirs) match {
       case None =>
@@ -114,17 +135,25 @@ object SlideAsm {
     println("Slide " + slideName)
     val metadataFile = new File(slideDir + File.separator + "slide.yaml")
     val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
-    val (slideMetadata, rawData) = if (metadataFile.exists) {
-      println("  reading sidecar yaml")
-      (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
-    } else {
-      println("  reading front matter yaml")
-      (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
+    val (slideMetadata, rawData) = {
+      val (slideMetadata, rawData) = if (metadataFile.exists) {
+        println("  reading sidecar yaml")
+        (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
+      } else {
+        println("  reading front matter yaml")
+        (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
+      }
+      slideMetadata match {
+        case YamlMap(m) =>
+          (m, rawData)
+        case _ =>
+          exit("Metadata of slide " + slideName + " must be a map")
+      }
     }
     val convertedHtml = slideProcessor.convertToHtml(rawData)
     println("  Metadata: " + slideMetadata)
-    // println("  Body: " + rawData.toList.mkString(" "))
     println("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
+    println("  Rendered template: " + renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata))
   }
 
 
