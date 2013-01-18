@@ -118,27 +118,23 @@ object SlideAsm {
     val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
     val xhtml = parseHtmltoXHtml(renderedTemplate)
     println("  Rendered template: " + xhtml)
+    // Process content: Rewrite image URLs, add to copy list
+    // TODO
+    // Wrap result in enclosing template (if any)
+    // TODO
   }
 
 
-  def processAssemblyFile(file : File, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) : Unit = {
-    // Parse assembly file
-    val assemblyFile = {
-      val data = AssemblyFile.parse(file)
-      if (data.isEmpty) {
-        sys.exit(1)
-      }
-      data.get
-    }
-    val properties = inheritedProperties ++ assemblyFile.properties.map
-    println("Properties of " + file + ": " + properties)
-    for (el <-assemblyFile.slides.list) el match {
+  def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], cfg : CmdParams, file : File) : Unit = {
+    // Process slide entries
+    for (el <- slides.list) el match {
       case YamlScalar(v : String) =>
         processSlideFile(v, cfg, properties)
       case YamlMap(m) =>
         if (!m.contains("include")) {
           exit("Missing include element in assembly file " + file)
         }
+        // TODO: Neuer Tag "slides", welcher eine Liste enthält --> Rekursiver Aufruf
         m.get("include").get match {
           case YamlScalar(filename : String) =>
             val incFile = {
@@ -157,6 +153,36 @@ object SlideAsm {
       case el =>
         exit("Illegal element " + el + " in assembly file " + file)
     }
+    // Wrap result in enclosing template (if any)
+    // TODO
+  }
+
+
+  def processAssemblyFile(file : File, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) : Unit = {
+    // Parse assembly file
+    val assemblyFile = {
+      val data = AssemblyFile.parse(file)
+      if (data.isEmpty) {
+        sys.exit(1)
+      }
+      data.get
+    }
+    val properties = inheritedProperties ++ assemblyFile.properties.map
+    println("Properties of " + file + ": " + properties)
+    // Execute slide section
+    processAssemblyFileSlideSection(assemblyFile.slides, properties, cfg, file)
+  }
+
+
+  def processMainAssemblyFile(cfg : CmdParams) : Unit = {
+    // Get default properties from template
+    val defaultProperties : Map[String, YamlElement] = Map()  // TODO
+    // Validate required properties are present
+    // TODO
+    // Do acutal processing
+    processAssemblyFile(cfg.assemblyFile.get, cfg, defaultProperties)
+    // Wrap result in main template
+    // TODO
   }
 
 
@@ -203,8 +229,12 @@ object SlideAsm {
       if (config.libDirs.length==0) {
         exit("No library directory given!")
       }
-      // Everything is ok, get to work
-      processAssemblyFile(config.assemblyFile.get, config, Map())
+      // Everything is ok, start processing main assembly file
+      processMainAssemblyFile(config)
+      // Copy template data to destination directory
+      // TODO
+      // Copy collected files (files that were referenced in the slide)
+      // TODO
     } getOrElse {
       sys.exit(1)
     }
