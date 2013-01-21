@@ -6,7 +6,12 @@ slideclass: normal
 - title
 - intro
 -
-  slidefile: subsection
+  wrapfile: subsection
   include: chapter1.yaml
+-
+  wrapfile: subsection
+  slides:
+  - chapter1title
+  - chapter1slide1
+  - chapter1slide2
 - end
-
