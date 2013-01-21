@@ -120,7 +120,7 @@ object SlideAsm {
     println("  Rendered template: " + xhtml)
     // Process content: Rewrite image URLs, add to copy list
     // TODO
-    // Wrap result in enclosing template (if any)
+    // Wrap result in enclosing template "slidefile" (if any)
     // TODO
   }
 
@@ -131,12 +131,12 @@ object SlideAsm {
       case YamlScalar(v : String) =>
         processSlideFile(v, cfg, properties)
       case YamlMap(m) =>
-        if (!m.contains("include")) {
-          exit("Missing include element in assembly file " + file)
+        if (!m.contains("include") && !m.contains("slides")) {
+          exit("Missing include/slides element in assembly file " + file)
         }
-        // TODO: Neuer Tag "slides", welcher eine Liste enthält --> Rekursiver Aufruf
-        m.get("include").get match {
-          case YamlScalar(filename : String) =>
+        m.get("include") match {
+          case None =>
+          case Some(YamlScalar(filename : String)) =>
             val incFile = {
               val incFile = findFileInDirs(filename, cfg.libDirs)
               if (incFile.isEmpty) {
@@ -150,10 +150,19 @@ object SlideAsm {
           case el =>
             exit("Illegal element " + el + " in assembly file " + file)
         }
+        m.get("slides") match {
+          case None =>
+          case Some(seq : YamlSeq) =>
+            println("Begin subsection")
+            processAssemblyFileSlideSection(seq, properties ++ m, cfg, file)
+            println("End subsection")
+          case el =>
+            exit("Illegal element " + el + " in assembly file " + file)
+        }
       case el =>
         exit("Illegal element " + el + " in assembly file " + file)
     }
-    // Wrap result in enclosing template (if any)
+    // Wrap result in enclosing template "wrapfile" (if any)
     // TODO
   }
 
