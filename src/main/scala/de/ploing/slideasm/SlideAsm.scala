@@ -15,9 +15,10 @@ import snakeyaml.YamlScalar
 import scala.Some
 import io.BufferedSource
 import org.clapper.scalasti.StringTemplate
+import grizzled.slf4j.Logging
 
 
-object SlideAsm {
+object SlideAsm extends Logging {
   case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
 
   def exit(msg : String) = {
@@ -80,10 +81,16 @@ object SlideAsm {
     }
   }
 
+
   def renderTemplate(html : String, cfg : CmdParams, properties : Map[String,YamlElement]) = {
     new StringTemplate(html)
       .setAttributes(properties.mapValues(flattenProperties(_)))
       .toString
+  }
+
+
+  def wrapInTemplate(html : String) = {
+    html
   }
 
 
@@ -94,15 +101,15 @@ object SlideAsm {
       case Some(f) =>
         f
     }
-    println("Slide " + slideName)
+    info("Slide " + slideName)
     val metadataFile = new File(slideDir + File.separator + "slide.yaml")
     val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
     val (slideMetadata, rawData) = {
       val (slideMetadata, rawData) = if (metadataFile.exists) {
-        println("  reading sidecar yaml")
+        debug("  reading sidecar yaml")
         (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
       } else {
-        println("  reading front matter yaml")
+        debug("  reading front matter yaml")
         (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
       }
       slideMetadata match {
@@ -113,11 +120,11 @@ object SlideAsm {
       }
     }
     val convertedHtml = slideProcessor.convertToHtml(rawData)
-    println("  Metadata: " + slideMetadata)
-    println("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
+    trace("  Metadata: " + slideMetadata)
+    trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
     val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
     val xhtml = parseHtmltoXHtml(renderedTemplate)
-    println("  Rendered template: " + xhtml)
+    trace("  Rendered template: " + xhtml)
     // Process content: Rewrite image URLs, add to copy list
     // TODO
     // Wrap result in enclosing template "slidefile" (if any)
@@ -144,18 +151,18 @@ object SlideAsm {
               }
               incFile.get
             }
-            println("Begin include " + incFile)
+            info("Begin include " + incFile)
             processAssemblyFile(incFile, cfg, properties ++ m)
-            println("End include " + incFile)
+            info("End include " + incFile)
           case el =>
             exit("Illegal element " + el + " in assembly file " + file)
         }
         m.get("slides") match {
           case None =>
           case Some(seq : YamlSeq) =>
-            println("Begin subsection")
+            info("Begin subsection")
             processAssemblyFileSlideSection(seq, properties ++ m, cfg, file)
-            println("End subsection")
+            info("End subsection")
           case el =>
             exit("Illegal element " + el + " in assembly file " + file)
         }
@@ -177,7 +184,7 @@ object SlideAsm {
       data.get
     }
     val properties = inheritedProperties ++ assemblyFile.properties.map
-    println("Properties of " + file + ": " + properties)
+    trace("Properties of " + file + ": " + properties)
     // Execute slide section
     processAssemblyFileSlideSection(assemblyFile.slides, properties, cfg, file)
   }
