@@ -89,8 +89,34 @@ object SlideAsm extends Logging {
   }
 
 
-  def wrapInTemplate(html : String) = {
-    html
+  def getStringProperty(key : String, properties : Map[String,YamlElement]) : String = {
+    properties.get(key) match {
+      case Some(YamlScalar(v : String)) =>
+        v
+      case _ =>
+        exit("Required property " + key + " not found")
+    }
+  }
+
+
+  def wrapInTemplate(html : String, properties : Map[String,YamlElement], cfg : CmdParams) = {
+    val templateDirName = getStringProperty("template",properties)
+    val templateName = getStringProperty("slidefile", properties)
+    val templateDir = findDirInDirs(templateDirName, cfg.libDirs) match {
+      case Some(f) => f
+      case _ => exit("Template directory " + templateDirName + " not found")
+    }
+    val templateFile = new File(templateDir + File.separator + (if (templateName.equals("index.html"))
+      "index.html" else
+      "_templates" + File.separator + templateName + ".html"))
+    if (templateFile.exists()) {
+      val source = scala.io.Source.fromFile(templateFile)
+      val template = source.mkString
+      source.close()
+      renderTemplate(template, cfg, properties ++ Map(("body" -> YamlScalar(html))))
+    } else {
+      exit("Unable to find template file " + templateName + " of template " + templateDirName)
+    }
   }
 
 
@@ -123,12 +149,14 @@ object SlideAsm extends Logging {
     trace("  Metadata: " + slideMetadata)
     trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
     val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
-    val xhtml = parseHtmltoXHtml(renderedTemplate)
+    val xhtml = (parseHtmltoXHtml(renderedTemplate) \ "body")  // TODO: How to get rid of enclosing <body>..</body>?
     trace("  Rendered template: " + xhtml)
     // Process content: Rewrite image URLs, add to copy list
     // TODO
     // Wrap result in enclosing template "slidefile" (if any)
-    // TODO
+    if (inheritedProperties.contains("template") && inheritedProperties.contains("slidefile")) {
+      trace("  Wrapped slide: " + wrapInTemplate(xhtml.toString, inheritedProperties, cfg))
+    }
   }
 
 
