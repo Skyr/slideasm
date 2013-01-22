@@ -13,12 +13,12 @@ object SnakeYaml {
         YamlEmpty
       case l : java.util.List[Object] =>
         val containedElements = for (el <- l.asScala) yield convertFromSnakeYaml(el)
-        new YamlSeq(containedElements.toList)
+        YamlSeq(containedElements.toList)
       case m : java.util.Map[String,Object] =>
         val containedMap : Map[String,YamlElement] = m.asScala.mapValues { obj =>
           convertFromSnakeYaml(obj)
         }.toMap
-        new YamlMap(containedMap)
+        YamlMap(containedMap)
       case _ =>
         YamlScalar(obj)
     }
