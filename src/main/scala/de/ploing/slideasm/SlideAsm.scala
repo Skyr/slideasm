@@ -149,7 +149,7 @@ object SlideAsm extends Logging {
     trace("  Metadata: " + slideMetadata)
     trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
     val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
-    val xhtml = (parseHtmltoXHtml(renderedTemplate) \ "body")  // TODO: How to get rid of enclosing <body>..</body>?
+    val xhtml = (parseHtmltoXHtml(renderedTemplate) \ "body")(0).child.mkString.trim
     trace("  Rendered template: " + xhtml)
     // Process content: Rewrite image URLs, add to copy list
     // TODO
