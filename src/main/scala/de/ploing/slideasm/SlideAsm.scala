@@ -18,14 +18,176 @@ import org.clapper.scalasti.StringTemplate
 import grizzled.slf4j.Logging
 
 
-object SlideAsm extends Logging {
+class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
+  def determineRawFormatProcessor(slideDir : File) : (File, FormatProcessor) = {
+    val mdFile = new File(slideDir + File.separator + "slide.md")
+    val htmlFile = new File(slideDir + File.separator + "slide.html")
+    if (mdFile.exists) {
+      (mdFile, MarkdownProcessor)
+    } else if (htmlFile.exists) {
+      (htmlFile, NOpProcessor)
+    } else {
+      SlideAsm.exit("No slide file in " + slideDir + "found")
+    }
+  }
+
+
+  def renderTemplate(html : String, properties : Map[String,YamlElement]) = {
+    new StringTemplate(html)
+      .setAttributes(properties.mapValues(SlideAsm.flattenProperties(_)))
+      .toString
+  }
+
+
+  def getStringProperty(key : String, properties : Map[String,YamlElement]) : String = {
+    properties.get(key) match {
+      case Some(YamlScalar(v : String)) =>
+        v
+      case _ =>
+        SlideAsm.exit("Required property " + key + " not found")
+    }
+  }
+
+
+  def wrapInTemplate(html : String, properties : Map[String,YamlElement]) = {
+    val templateDirName = getStringProperty("template",properties)
+    val templateName = getStringProperty("slidefile", properties)
+    val templateDir = SlideAsm.findDirInDirs(templateDirName, cfg.libDirs) match {
+      case Some(f) => f
+      case _ => SlideAsm.exit("Template directory " + templateDirName + " not found")
+    }
+    val templateFile = new File(templateDir + File.separator + (if (templateName.equals("index.html"))
+      "index.html" else
+      "_templates" + File.separator + templateName + ".html"))
+    if (templateFile.exists()) {
+      val source = scala.io.Source.fromFile(templateFile)
+      val template = source.mkString
+      source.close()
+      renderTemplate(template, properties ++ Map(("body" -> YamlScalar(html))))
+    } else {
+      SlideAsm.exit("Unable to find template file " + templateName + " of template " + templateDirName)
+    }
+  }
+
+
+  def processSlideFile(slideName : String, inheritedProperties : Map[String,YamlElement]) = {
+    val slideDir : File = SlideAsm.findDirInDirs(slideName, cfg.libDirs) match {
+      case None =>
+        SlideAsm.exit("Slide directory " + slideName + " not found")
+      case Some(f) =>
+        f
+    }
+    info("Slide " + slideName)
+    val metadataFile = new File(slideDir + File.separator + "slide.yaml")
+    val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
+    val (slideMetadata, rawData) = {
+      val (slideMetadata, rawData) = if (metadataFile.exists) {
+        debug("  reading sidecar yaml")
+        (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
+      } else {
+        debug("  reading front matter yaml")
+        (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
+      }
+      slideMetadata match {
+        case YamlMap(m) =>
+          (m, rawData)
+        case _ =>
+          SlideAsm.exit("Metadata of slide " + slideName + " must be a map")
+      }
+    }
+    val convertedHtml = slideProcessor.convertToHtml(rawData)
+    trace("  Metadata: " + slideMetadata)
+    trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
+    val renderedTemplate = renderTemplate(convertedHtml, inheritedProperties ++ slideMetadata)
+    val xhtml = (SlideAsm.parseHtmltoXHtml(renderedTemplate) \ "body")(0).child.mkString.trim
+    trace("  Rendered template: " + xhtml)
+    // Process content: Rewrite image URLs, add to copy list
+    // TODO
+    // Wrap result in enclosing template "slidefile" (if any)
+    if (inheritedProperties.contains("template") && inheritedProperties.contains("slidefile")) {
+      trace("  Wrapped slide: " + wrapInTemplate(xhtml.toString, inheritedProperties))
+    }
+  }
+
+
+  def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], file : File) : Unit = {
+    // Process slide entries
+    for (el <- slides.list) el match {
+      case YamlScalar(v : String) =>
+        processSlideFile(v, properties)
+      case YamlMap(m) =>
+        if (!m.contains("include") && !m.contains("slides")) {
+          SlideAsm.exit("Missing include/slides element in assembly file " + file)
+        }
+        m.get("include") match {
+          case None =>
+          case Some(YamlScalar(filename : String)) =>
+            val incFile = {
+              val incFile = SlideAsm.findFileInDirs(filename, cfg.libDirs)
+              if (incFile.isEmpty) {
+                SlideAsm.exit("Included assembly file " + filename + " not found")
+              }
+              incFile.get
+            }
+            info("Begin include " + incFile)
+            processAssemblyFile(incFile, properties ++ m)
+            info("End include " + incFile)
+          case el =>
+            SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
+        }
+        m.get("slides") match {
+          case None =>
+          case Some(seq : YamlSeq) =>
+            info("Begin subsection")
+            processAssemblyFileSlideSection(seq, properties ++ m, file)
+            info("End subsection")
+          case el =>
+            SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
+        }
+      case el =>
+        SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
+    }
+    // Wrap result in enclosing template "wrapfile" (if any)
+    // TODO
+  }
+
+
+  def processAssemblyFile(file : File, inheritedProperties : Map[String,YamlElement]) : Unit = {
+    // Parse assembly file
+    val assemblyFile = {
+      val data = AssemblyFile.parse(file)
+      if (data.isEmpty) {
+        sys.exit(1)
+      }
+      data.get
+    }
+    val properties = inheritedProperties ++ assemblyFile.properties.map
+    trace("Properties of " + file + ": " + properties)
+    // Execute slide section
+    processAssemblyFileSlideSection(assemblyFile.slides, properties, file)
+  }
+
+
+  def processMainAssemblyFile() : Unit = {
+    // Get default properties from template
+    val defaultProperties : Map[String, YamlElement] = Map()  // TODO
+    // Validate required properties are present
+    // TODO
+    // Do acutal processing
+    processAssemblyFile(cfg.assemblyFile.get, defaultProperties)
+    // Wrap result in main template
+    // TODO
+  }
+}
+
+
+object SlideAsm {
   case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
 
   def exit(msg : String) = {
     println(msg)
     sys.exit(1)
   }
-
 
   def loadJSoupXml(path : Path) : Elem = {
     val jsoupDoc = Jsoup.parse(path.toFile, "UTF-8", "")
@@ -45,7 +207,6 @@ object SlideAsm extends Logging {
     }
   }
 
-
   def findDirInDirs(dirName : String, libDirs : List[Path]) : Option[File] = {
     libDirs map { path =>
       new File(path + path.getFileSystem.getSeparator + dirName)
@@ -53,20 +214,6 @@ object SlideAsm extends Logging {
       file.exists && file.isDirectory
     }
   }
-
-
-  def determineRawFormatProcessor(slideDir : File) : (File, FormatProcessor) = {
-    val mdFile = new File(slideDir + File.separator + "slide.md")
-    val htmlFile = new File(slideDir + File.separator + "slide.html")
-    if (mdFile.exists) {
-      (mdFile, MarkdownProcessor)
-    } else if (htmlFile.exists) {
-      (htmlFile, NOpProcessor)
-    } else {
-      exit("No slide file in " + slideDir + "found")
-    }
-  }
-
 
   def flattenProperties(props : YamlElement) : Any = {
     props match {
@@ -79,154 +226,6 @@ object SlideAsm extends Logging {
       case _ =>
         ""
     }
-  }
-
-
-  def renderTemplate(html : String, cfg : CmdParams, properties : Map[String,YamlElement]) = {
-    new StringTemplate(html)
-      .setAttributes(properties.mapValues(flattenProperties(_)))
-      .toString
-  }
-
-
-  def getStringProperty(key : String, properties : Map[String,YamlElement]) : String = {
-    properties.get(key) match {
-      case Some(YamlScalar(v : String)) =>
-        v
-      case _ =>
-        exit("Required property " + key + " not found")
-    }
-  }
-
-
-  def wrapInTemplate(html : String, properties : Map[String,YamlElement], cfg : CmdParams) = {
-    val templateDirName = getStringProperty("template",properties)
-    val templateName = getStringProperty("slidefile", properties)
-    val templateDir = findDirInDirs(templateDirName, cfg.libDirs) match {
-      case Some(f) => f
-      case _ => exit("Template directory " + templateDirName + " not found")
-    }
-    val templateFile = new File(templateDir + File.separator + (if (templateName.equals("index.html"))
-      "index.html" else
-      "_templates" + File.separator + templateName + ".html"))
-    if (templateFile.exists()) {
-      val source = scala.io.Source.fromFile(templateFile)
-      val template = source.mkString
-      source.close()
-      renderTemplate(template, cfg, properties ++ Map(("body" -> YamlScalar(html))))
-    } else {
-      exit("Unable to find template file " + templateName + " of template " + templateDirName)
-    }
-  }
-
-
-  def processSlideFile(slideName : String, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) = {
-    val slideDir : File = findDirInDirs(slideName, cfg.libDirs) match {
-      case None =>
-        exit("Slide directory " + slideName + " not found")
-      case Some(f) =>
-        f
-    }
-    info("Slide " + slideName)
-    val metadataFile = new File(slideDir + File.separator + "slide.yaml")
-    val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
-    val (slideMetadata, rawData) = {
-      val (slideMetadata, rawData) = if (metadataFile.exists) {
-        debug("  reading sidecar yaml")
-        (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
-      } else {
-        debug("  reading front matter yaml")
-        (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
-      }
-      slideMetadata match {
-        case YamlMap(m) =>
-          (m, rawData)
-        case _ =>
-          exit("Metadata of slide " + slideName + " must be a map")
-      }
-    }
-    val convertedHtml = slideProcessor.convertToHtml(rawData)
-    trace("  Metadata: " + slideMetadata)
-    trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
-    val renderedTemplate = renderTemplate(convertedHtml, cfg, inheritedProperties ++ slideMetadata)
-    val xhtml = (parseHtmltoXHtml(renderedTemplate) \ "body")(0).child.mkString.trim
-    trace("  Rendered template: " + xhtml)
-    // Process content: Rewrite image URLs, add to copy list
-    // TODO
-    // Wrap result in enclosing template "slidefile" (if any)
-    if (inheritedProperties.contains("template") && inheritedProperties.contains("slidefile")) {
-      trace("  Wrapped slide: " + wrapInTemplate(xhtml.toString, inheritedProperties, cfg))
-    }
-  }
-
-
-  def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], cfg : CmdParams, file : File) : Unit = {
-    // Process slide entries
-    for (el <- slides.list) el match {
-      case YamlScalar(v : String) =>
-        processSlideFile(v, cfg, properties)
-      case YamlMap(m) =>
-        if (!m.contains("include") && !m.contains("slides")) {
-          exit("Missing include/slides element in assembly file " + file)
-        }
-        m.get("include") match {
-          case None =>
-          case Some(YamlScalar(filename : String)) =>
-            val incFile = {
-              val incFile = findFileInDirs(filename, cfg.libDirs)
-              if (incFile.isEmpty) {
-                exit("Included assembly file " + filename + " not found")
-              }
-              incFile.get
-            }
-            info("Begin include " + incFile)
-            processAssemblyFile(incFile, cfg, properties ++ m)
-            info("End include " + incFile)
-          case el =>
-            exit("Illegal element " + el + " in assembly file " + file)
-        }
-        m.get("slides") match {
-          case None =>
-          case Some(seq : YamlSeq) =>
-            info("Begin subsection")
-            processAssemblyFileSlideSection(seq, properties ++ m, cfg, file)
-            info("End subsection")
-          case el =>
-            exit("Illegal element " + el + " in assembly file " + file)
-        }
-      case el =>
-        exit("Illegal element " + el + " in assembly file " + file)
-    }
-    // Wrap result in enclosing template "wrapfile" (if any)
-    // TODO
-  }
-
-
-  def processAssemblyFile(file : File, cfg : CmdParams, inheritedProperties : Map[String,YamlElement]) : Unit = {
-    // Parse assembly file
-    val assemblyFile = {
-      val data = AssemblyFile.parse(file)
-      if (data.isEmpty) {
-        sys.exit(1)
-      }
-      data.get
-    }
-    val properties = inheritedProperties ++ assemblyFile.properties.map
-    trace("Properties of " + file + ": " + properties)
-    // Execute slide section
-    processAssemblyFileSlideSection(assemblyFile.slides, properties, cfg, file)
-  }
-
-
-  def processMainAssemblyFile(cfg : CmdParams) : Unit = {
-    // Get default properties from template
-    val defaultProperties : Map[String, YamlElement] = Map()  // TODO
-    // Validate required properties are present
-    // TODO
-    // Do acutal processing
-    processAssemblyFile(cfg.assemblyFile.get, cfg, defaultProperties)
-    // Wrap result in main template
-    // TODO
   }
 
 
@@ -274,7 +273,8 @@ object SlideAsm extends Logging {
         exit("No library directory given!")
       }
       // Everything is ok, start processing main assembly file
-      processMainAssemblyFile(config)
+      val processor = new SlideAsm(config)
+      processor.processMainAssemblyFile()
       // Copy template data to destination directory
       // TODO
       // Copy collected files (files that were referenced in the slide)
