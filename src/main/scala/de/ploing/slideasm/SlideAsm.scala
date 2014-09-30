@@ -124,6 +124,21 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
   }
 
 
+  /**
+   * Process yaml sequence describing a slide set. The elements must be:
+   * <ul>
+   *   <li>String elements - a name referencing a slide directory
+   *   <li>A map containing either a key "include" or a key "slides".<br>
+   *   "include" maps to a yaml file to be included.
+   *   "slides" maps to a yaml sequence again parsed with this method.
+   *   Additional keys will be added to the current properties map.
+   * </ul>
+   * @param slides
+   * @param properties
+   * @param file
+   * @param firstSlideNum start index for slide numbering
+   * @return the number of slides generated
+   */
   def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], file : File, firstSlideNum : Int) : Int = {
     var slideNum = firstSlideNum
     // Process slide entries
@@ -172,6 +187,13 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
   }
 
 
+  /**
+   *
+   * @param file
+   * @param inheritedProperties
+   * @param firstSlideNum start index for slide numbering
+   * @return the number of slides generated
+   */
   def processAssemblyFile(file : File, inheritedProperties : Map[String,YamlElement], firstSlideNum : Int) : Int = {
     // Parse assembly file
     val assemblyFile = {
