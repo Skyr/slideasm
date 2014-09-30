@@ -70,6 +70,31 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
   }
 
 
+  /**
+   * Read a file and its corresponding yaml metadata.
+   * Metadata is read from a sidecar file (if existant), otherwise extracted as yaml front matter.
+   *
+   * @param file
+   * @param sidecarFile
+   * @return
+   */
+  def readFileWithMetadata(file : File, sidecarFile : File) = {
+    val (slideMetadata, rawData) = if (sidecarFile.exists) {
+      debug("  reading sidecar yaml")
+      (SnakeYaml.parse(sidecarFile), new BufferedSource(new FileInputStream(file)).getLines)
+    } else {
+      debug("  reading front matter yaml")
+      (SnakeYaml.parseFrontMatter(file), SnakeYaml.skipOverFrontMatter(new FileInputStream(file)))
+    }
+    slideMetadata match {
+      case YamlMap(m) =>
+        (m, rawData)
+      case _ =>
+        SlideAsm.exit("Metadata in " + sidecarFile + " must be a map")
+    }
+  }
+
+
   def processSlideFile(slideName : String, inheritedProperties : Map[String,YamlElement]) = {
     val slideDir : File = SlideAsm.findDirInDirs(slideName, cfg.libDirs) match {
       case None =>
@@ -80,21 +105,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     info("Slide " + slideName)
     val metadataFile = new File(slideDir + File.separator + "slide.yaml")
     val (slideFile, slideProcessor) = determineRawFormatProcessor(slideDir)
-    val (slideMetadata, rawData) = {
-      val (slideMetadata, rawData) = if (metadataFile.exists) {
-        debug("  reading sidecar yaml")
-        (SnakeYaml.parse(metadataFile), new BufferedSource(new FileInputStream(slideFile)).getLines)
-      } else {
-        debug("  reading front matter yaml")
-        (SnakeYaml.parseFrontMatter(slideFile), SnakeYaml.skipOverFrontMatter(new FileInputStream(slideFile)))
-      }
-      slideMetadata match {
-        case YamlMap(m) =>
-          (m, rawData)
-        case _ =>
-          SlideAsm.exit("Metadata of slide " + slideName + " must be a map")
-      }
-    }
+    val (slideMetadata, rawData) = readFileWithMetadata(slideFile, metadataFile)
     val convertedHtml = slideProcessor.convertToHtml(rawData)
     trace("  Metadata: " + slideMetadata)
     trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
