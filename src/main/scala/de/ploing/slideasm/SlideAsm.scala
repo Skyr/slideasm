@@ -95,7 +95,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
   }
 
 
-  def processSlideFile(slideName : String, inheritedProperties : Map[String,YamlElement]) = {
+  def processSlideFile(slideName : String, inheritedProperties : Map[String,YamlElement], slideNum : Int) = {
     val slideDir : File = SlideAsm.findDirInDirs(slideName, cfg.libDirs) match {
       case None =>
         SlideAsm.exit("Slide directory " + slideName + " not found")
@@ -109,23 +109,28 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     val convertedHtml = slideProcessor.convertToHtml(rawData)
     trace("  Metadata: " + slideMetadata)
     trace("  Html (via " + slideProcessor.getClass.getSimpleName + "): " + convertedHtml)
-    val renderedTemplate = renderTemplate(convertedHtml, inheritedProperties ++ slideMetadata)
+    val slideProperties = inheritedProperties ++ slideMetadata +
+      ("slideid" -> YamlScalar(f"slide$slideNum%03d")) +
+      ("slidenum" -> YamlScalar(s"$slideNum"))
+    val renderedTemplate = renderTemplate(convertedHtml, slideProperties)
     val xhtml = (SlideAsm.parseHtmltoXHtml(renderedTemplate) \ "body")(0).child.mkString.trim
     trace("  Rendered template: " + xhtml)
     // Process content: Rewrite image URLs, add to copy list
     // TODO
     // Wrap result in enclosing template "slidefile" (if any)
     if (inheritedProperties.contains("template") && inheritedProperties.contains("slidefile")) {
-      trace("  Wrapped slide: " + wrapInTemplate(xhtml.toString, inheritedProperties))
+      trace("  Wrapped slide: " + wrapInTemplate(xhtml.toString, slideProperties))
     }
   }
 
 
-  def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], file : File) : Unit = {
+  def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], file : File, firstSlideNum : Int) : Int = {
+    var slideNum = firstSlideNum
     // Process slide entries
     for (el <- slides.list) el match {
       case YamlScalar(v : String) =>
-        processSlideFile(v, properties)
+        processSlideFile(v, properties, slideNum)
+        slideNum = slideNum + 1
       case YamlMap(m) =>
         if (!m.contains("include") && !m.contains("slides")) {
           SlideAsm.exit("Missing include/slides element in assembly file " + file)
@@ -141,7 +146,8 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
               incFile.get
             }
             info("Begin include " + incFile)
-            processAssemblyFile(incFile, properties ++ m)
+            val slideCount = processAssemblyFile(incFile, properties ++ m, slideNum)
+            slideNum = slideNum + slideCount
             info("End include " + incFile)
           case el =>
             SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
@@ -150,7 +156,8 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
           case None =>
           case Some(seq : YamlSeq) =>
             info("Begin subsection")
-            processAssemblyFileSlideSection(seq, properties ++ m, file)
+            val slideCount = processAssemblyFileSlideSection(seq, properties ++ m, file, slideNum)
+            slideNum = slideNum + slideCount
             info("End subsection")
           case el =>
             SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
@@ -160,10 +167,12 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     }
     // Wrap result in enclosing template "wrapfile" (if any)
     // TODO
+    // Return slide count
+    slideNum - firstSlideNum
   }
 
 
-  def processAssemblyFile(file : File, inheritedProperties : Map[String,YamlElement]) : Unit = {
+  def processAssemblyFile(file : File, inheritedProperties : Map[String,YamlElement], firstSlideNum : Int) : Int = {
     // Parse assembly file
     val assemblyFile = {
       val data = AssemblyFile.parse(file)
@@ -175,7 +184,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     val properties = inheritedProperties ++ assemblyFile.properties.map
     trace("Properties of " + file + ": " + properties)
     // Execute slide section
-    processAssemblyFileSlideSection(assemblyFile.slides, properties, file)
+    processAssemblyFileSlideSection(assemblyFile.slides, properties, file, firstSlideNum)
   }
 
 
@@ -185,7 +194,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     // Validate required properties are present
     // TODO
     // Do acutal processing
-    processAssemblyFile(cfg.assemblyFile.get, defaultProperties)
+    processAssemblyFile(cfg.assemblyFile.get, defaultProperties, 1)
     // Wrap result in main template
     // TODO
   }
