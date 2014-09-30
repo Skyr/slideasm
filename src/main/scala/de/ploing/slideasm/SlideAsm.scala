@@ -182,7 +182,10 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
 
 
 object SlideAsm {
-  case class CmdParams(assemblyFile : Option[File] = None, libDirs : List[Path] = List(), outDir : Option[Path] = None)
+  case class CmdParams(
+                        assemblyFile : Option[File] = None,
+                        libDirs : List[Path] = List(),
+                        outDir : Option[Path] = None)
 
   def exit(msg : String) = {
     println(msg)
@@ -266,9 +269,6 @@ object SlideAsm {
     // Execute command line parser
     parser.parse(args, CmdParams()) map { config =>
       // Parameters parsed successfully, do last validations
-      if (config.assemblyFile==None) {
-        exit("No assembly file given!")
-      }
       if (config.libDirs.length==0) {
         exit("No library directory given!")
       }
