@@ -150,6 +150,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
    * @return the number of slides generated
    */
   def processAssemblyFileSlideSection(slides : YamlSeq, properties : Map[String,YamlElement], file : File, firstSlideNum : Int) : Int = {
+    val uninheritedProperties = List("wrapfile")
     var slideNum = firstSlideNum
     // Process slide entries
     for (el <- slides.list) el match {
@@ -171,7 +172,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
               incFile.get
             }
             info("Begin include " + incFile)
-            val slideCount = processAssemblyFile(incFile, properties ++ m, slideNum)
+            val slideCount = processAssemblyFile(incFile, properties -- uninheritedProperties ++ m, slideNum)
             slideNum = slideNum + slideCount
             info("End include " + incFile)
           case el =>
@@ -181,7 +182,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
           case None =>
           case Some(seq : YamlSeq) =>
             info("Begin subsection")
-            val slideCount = processAssemblyFileSlideSection(seq, properties ++ m, file, slideNum)
+            val slideCount = processAssemblyFileSlideSection(seq, properties -- uninheritedProperties ++ m, file, slideNum)
             slideNum = slideNum + slideCount
             info("End subsection")
           case el =>
