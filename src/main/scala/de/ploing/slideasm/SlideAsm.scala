@@ -194,7 +194,12 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
         SlideAsm.exit("Illegal element " + el + " in assembly file " + file)
     }
     // Wrap result in enclosing template "wrapfile" (if any)
-    // TODO
+    properties.get("wrapfile") match {
+      case Some(wrapFileName) =>
+        debug(s"Wrapping ${slideNum - firstSlideNum} slides in $wrapFileName")
+        // TODO
+      case None =>
+    }
     // Return slide count
     slideNum - firstSlideNum
   }
