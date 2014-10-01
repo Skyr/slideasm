@@ -11,7 +11,7 @@ libraryDependencies ++= Seq(
   "ch.qos.logback" % "logback-classic" % "1.0.9",
   "org.pegdown" % "pegdown" % "1.1.0",
   "org.jsoup" % "jsoup" % "1.6.3",
-  "org.yaml" % "snakeyaml" % "1.11",
+  "org.yaml" % "snakeyaml" % "1.14",
   "com.github.scopt" %% "scopt" % "2.1.0",
   "org.clapper" % "scalasti_2.10" % "1.0.0"
 )
