@@ -44,8 +44,10 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
     properties.get(key) match {
       case Some(YamlScalar(v : String)) =>
         v
-      case _ =>
+      case None =>
         SlideAsm.exit("Required property " + key + " not found")
+      case _ =>
+        SlideAsm.exit("Property " + key + " must be a string")
     }
   }
 
@@ -228,14 +230,7 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
       case Success(data) =>
         data
     }
-    val templateName = mainAssemblyFile.properties.map.get("template") match {
-      case None =>
-        SlideAsm.exit("No slide template given")
-      case Some(YamlScalar(name : String)) =>
-        name
-      case _ =>
-        SlideAsm.exit("Template name must be a string")
-    }
+    val templateName = getStringProperty("template", mainAssemblyFile.properties.map)
     // Find slide template
     val templateDir = SlideAsm.findDirInDirs(templateName, cfg.libDirs) match {
       case None =>
