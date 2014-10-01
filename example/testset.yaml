@@ -1,7 +1,5 @@
 title: Test Slideset
 template: slidetemplate
-slidefile: default
-slideclass: normal
 ---
 - title
 - intro
