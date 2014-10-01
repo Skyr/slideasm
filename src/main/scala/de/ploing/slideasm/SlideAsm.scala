@@ -1,6 +1,7 @@
 package de.ploing.slideasm
 
 import processor.{NOpProcessor, MarkdownProcessor}
+import scala.util.{Success, Failure}
 import scala.xml.XML
 import java.nio.file.Files
 import org.jsoup.Jsoup
@@ -196,13 +197,12 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
    */
   def processAssemblyFile(file : File, inheritedProperties : Map[String,YamlElement], firstSlideNum : Int) : Int = {
     // Parse assembly file
-    val assemblyFile = {
-      val data = AssemblyFile.parse(file)
-      if (data.isEmpty) {
-        sys.exit(1)
+    val assemblyFile = AssemblyFile.parse(file) match {
+        case Failure(ex) =>
+          SlideAsm.exit(ex.getMessage)
+        case Success(data) =>
+          data
       }
-      data.get
-    }
     val properties = inheritedProperties ++ assemblyFile.properties.map
     trace("Properties of " + file + ": " + properties)
     // Execute slide section
