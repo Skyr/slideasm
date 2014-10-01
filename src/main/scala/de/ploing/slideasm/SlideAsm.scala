@@ -85,7 +85,16 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
       (SnakeYaml.parse(sidecarFile), new BufferedSource(new FileInputStream(file)).getLines)
     } else {
       debug("  reading front matter yaml")
-      (SnakeYaml.parseFrontMatter(file), SnakeYaml.skipOverFrontMatter(new FileInputStream(file)))
+      val frontMatter = SnakeYaml.parseFrontMatter(file)
+      val mainData = SnakeYaml.skipOverFrontMatter(new FileInputStream(file))
+      frontMatter match {
+        case YamlScalar(_) if (!mainData.hasNext) =>
+          // Strong indication that no front matter was present
+          debug("  no front matter found")
+          (YamlMap(Map()), new BufferedSource(new FileInputStream(file)).getLines)
+        case _ =>
+          (frontMatter, mainData)
+      }
     }
     slideMetadata match {
       case YamlMap(m) =>
@@ -211,8 +220,32 @@ class SlideAsm(cfg : SlideAsm.CmdParams) extends Logging {
 
 
   def processMainAssemblyFile() : Unit = {
+    // Determine slide template name
+    val mainAssemblyFile = AssemblyFile.parse(cfg.assemblyFile.get) match {
+      case Failure(ex) =>
+        SlideAsm.exit(ex.getMessage)
+      case Success(data) =>
+        data
+    }
+    val templateName = mainAssemblyFile.properties.map.get("template") match {
+      case None =>
+        SlideAsm.exit("No slide template given")
+      case Some(YamlScalar(name : String)) =>
+        name
+      case _ =>
+        SlideAsm.exit("Template name must be a string")
+    }
+    // Find slide template
+    val templateDir = SlideAsm.findDirInDirs(templateName, cfg.libDirs) match {
+      case None =>
+        SlideAsm.exit(s"Template directory $templateName not found")
+      case Some(dir) =>
+        dir
+    }
     // Get default properties from template
-    val defaultProperties : Map[String, YamlElement] = Map()  // TODO
+    val templateMainFile = new File(templateDir + File.separator + "index.html")
+    val templateMetadataFile = new File(templateDir + File.separator + "template.yaml")
+    val (defaultProperties, _) = readFileWithMetadata(templateMainFile, templateMetadataFile)
     // Validate required properties are present
     // TODO
     // Do acutal processing
